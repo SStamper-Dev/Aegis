@@ -22,6 +22,15 @@
       line-height: 1.5;
       min-height: 100vh;
       padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .page {
+      width: 100%;
+      max-width: 52rem;
+      margin-top: auto;
+      margin-bottom: auto;
     }
     h1 {
       font-size: 1.35rem;
@@ -36,7 +45,6 @@
     .grid {
       display: grid;
       gap: 1rem;
-      max-width: 52rem;
     }
     @media (min-width: 640px) {
       .grid { grid-template-columns: 1fr 1fr; }
@@ -77,26 +85,48 @@
     .meta code { color: var(--text); }
     #status { font-size: 0.8rem; color: var(--muted); margin-bottom: 1rem; }
     .err { color: var(--warn); }
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .header-row img {
+      width: 56px;
+      height: 56px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .header-row .titles { min-width: 0; }
+    .header-row .sub { margin-bottom: 0; }
   </style>
 </head>
 <body>
-  <h1>Aegis</h1>
-  <p class="sub">Local dashboard — failed SSH attempts and UFW blocks</p>
-  <p id="status">Connecting…</p>
-  <div class="grid">
-    <section>
-      <h2>Blocked (UFW)</h2>
-      <ul id="blocked"></ul>
-    </section>
-    <section>
-      <h2>Recent failures</h2>
-      <ul id="failures"></ul>
-    </section>
+  <div class="page">
+    <header class="header-row">
+      <!-- Image file lives next to aegis.html; swap src for your own PNG/JPG/WebP/SVG -->
+      <img src="/aegis-logo.svg" width="56" height="56" alt="" />
+      <div class="titles">
+        <h1>Aegis</h1>
+        <p class="sub">Local dashboard — failed SSH attempts and UFW blocks</p>
+      </div>
+    </header>
+    <p id="status">Connecting…</p>
+    <div class="grid">
+      <section>
+        <h2>Blocked (UFW)</h2>
+        <ul id="blocked"></ul>
+      </section>
+      <section>
+        <h2>Recent failures</h2>
+        <ul id="failures"></ul>
+      </section>
+    </div>
+    <p class="meta">
+      Log: <code id="logpath">—</code> ·
+      Threshold: <code id="thr">—</code> in <code id="win">—</code>s
+    </p>
   </div>
-  <p class="meta">
-    Log: <code id="logpath">—</code> ·
-    Threshold: <code id="thr">—</code> in <code id="win">—</code>s
-  </p>
 
   <script>
     function fmtTime(t) {
@@ -147,7 +177,7 @@
           (f) => `<span class="ip">${f.ip}</span> · ${fmtTime(f.t)}`
         );
       } catch (e) {
-        statusEl.textContent = "Could not reach Aegis API — is the service running with --web?";
+        statusEl.textContent = "Could not reach Aegis API — is aegis-view.py running?";
         statusEl.className = "err";
       }
     }
