@@ -19,11 +19,17 @@ def parse_failed_ip(line):
 
 def block_ip(ip):
     # Drops future traffic from this IP via UFW (run as root)
-    subprocess.run(
+    result = subprocess.run(
         ["ufw", "deny", "from", ip],
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout).strip()
+        print(f"[!] UFW failed to block {ip}: {err}")
+        return False
+    print(f"[+] UFW rule added for {ip}")
+    return True
 
 
 def flush_state(state_path, state):
@@ -87,10 +93,10 @@ def watch_log(path, threshold, window_sec, state_path):
 
             if len(attempts[ip]) >= threshold:
                 print(f"[!] Blocking {ip} ({len(attempts[ip])} failed logins in window).")
-                block_ip(ip)
-                blocked.add(ip)
-                state["blocked"].append({"ip": ip, "t": now})
-                flush_state(state_path, state)
+                if block_ip(ip):
+                    blocked.add(ip)
+                    state["blocked"].append({"ip": ip, "t": now})
+                    flush_state(state_path, state)
     finally:
         f.close()
 
