@@ -1,9 +1,12 @@
 import re
+import json
 import time
 import argparse
 import subprocess
 import sys
+import os
 from collections import defaultdict
+from pathlib import Path
 
 FAILED_PW = re.compile(r"Failed password for .+ from ([\d.]+) ")
 
@@ -23,10 +26,32 @@ def block_ip(ip):
     )
 
 
-def watch_log(path, threshold, window_sec):
+def flush_state(state_path, state):
+    # Writes atomically so aegis-view can read a consistent snapshot
+    state_path = Path(state_path)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = state_path.with_suffix(state_path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(state, f)
+    tmp.replace(state_path)
+    try:
+        os.chmod(state_path, 0o644)
+    except OSError:
+        pass
+
+
+def watch_log(path, threshold, window_sec, state_path):
     # Tails auth.log and blocks IPs that exceed failed attempt threshold in the window
     attempts = defaultdict(list)
     blocked = set()
+    state = {
+        "log": path,
+        "threshold": threshold,
+        "window": window_sec,
+        "blocked": [],
+        "recent_failures": [],
+    }
+    flush_state(state_path, state)
 
     try:
         f = open(path, "r", encoding="utf-8", errors="replace")
@@ -35,6 +60,7 @@ def watch_log(path, threshold, window_sec):
         sys.exit(1)
 
     print(f"[*] Watching {path} (threshold={threshold} failures / {window_sec}s window)...")
+    print(f"[*] State file: {state_path}")
 
     try:
         f.seek(0, 2)
@@ -49,6 +75,10 @@ def watch_log(path, threshold, window_sec):
                 continue
 
             now = time.time()
+            state["recent_failures"].append({"ip": ip, "t": now})
+            state["recent_failures"] = state["recent_failures"][-100:]
+            flush_state(state_path, state)
+
             attempts[ip] = [t for t in attempts[ip] if now - t < window_sec]
             attempts[ip].append(now)
 
@@ -59,6 +89,8 @@ def watch_log(path, threshold, window_sec):
                 print(f"[!] Blocking {ip} ({len(attempts[ip])} failed logins in window).")
                 block_ip(ip)
                 blocked.add(ip)
+                state["blocked"].append({"ip": ip, "t": now})
+                flush_state(state_path, state)
     finally:
         f.close()
 
@@ -87,6 +119,12 @@ if __name__ == "__main__":
         default=60,
         help="Sliding window in seconds for counting failures (default: 60)",
     )
+    parser.add_argument(
+        "-s",
+        "--state",
+        default="/tmp/aegis_state.json",
+        help="JSON state file for aegis-view.py (default: /tmp/aegis_state.json)",
+    )
 
     args = parser.parse_args()
-    watch_log(args.log, args.threshold, args.window)
+    watch_log(args.log, args.threshold, args.window, args.state)
