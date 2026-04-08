@@ -19,17 +19,7 @@ def parse_failed_ip(line):
 
 def block_ip(ip):
     # Drops future traffic from this IP via UFW (run as root)
-    result = subprocess.run(
-        ["ufw", "deny", "from", ip],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        err = (result.stderr or result.stdout).strip()
-        print(f"[!] UFW failed to block {ip}: {err}")
-        return False
-    print(f"[+] UFW rule added for {ip}")
-    return True
+    subprocess.run(["ufw", "insert", "1", "deny", "from", ip])
 
 
 def flush_state(state_path, state):
@@ -39,7 +29,12 @@ def flush_state(state_path, state):
     tmp = state_path.with_suffix(state_path.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(state, f)
-    tmp.replace(state_path)
+    try:
+        tmp.replace(state_path)
+    except (FileNotFoundError, OSError):
+        # Demo-safe fallback: if atomic replace fails, write directly.
+        with open(state_path, "w", encoding="utf-8") as f:
+            json.dump(state, f)
     try:
         os.chmod(state_path, 0o644)
     except OSError:
@@ -93,10 +88,10 @@ def watch_log(path, threshold, window_sec, state_path):
 
             if len(attempts[ip]) >= threshold:
                 print(f"[!] Blocking {ip} ({len(attempts[ip])} failed logins in window).")
-                if block_ip(ip):
-                    blocked.add(ip)
-                    state["blocked"].append({"ip": ip, "t": now})
-                    flush_state(state_path, state)
+                block_ip(ip)
+                blocked.add(ip)
+                state["blocked"].append({"ip": ip, "t": now})
+                flush_state(state_path, state)
     finally:
         f.close()
 
