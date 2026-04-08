@@ -22,7 +22,7 @@ Aegis watches `/var/log/auth.log` for failed SSH logins, tracks source IPs, and 
 sudo python3 aegis.py
 ```
 
-Or for the visual dashboard (does not need to be root if it can read the state file):
+Optional: run the dashboard on the same machine (in another terminal; does not need to be root if it can read the state file):
 
 ```bash
 python3 aegis-view.py
